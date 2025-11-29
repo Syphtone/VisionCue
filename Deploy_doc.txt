@@ -4,11 +4,15 @@
    MODEL_PATH = "your path to saved trained model (facelstm_WFH_v1.keras)"
    SCALER_PATH = "path to saved Standard scaler to ensure consistent data transformation during model training and deployment.(scaler.pkl)
 
+   ## 📚 References
+     - OpenFace: https://github.com/TadasBaltrusaitis/OpenFace  
+     - OpenSmile: https://audeering.github.io/opensmile/  
+
    OPENFACE_PATH = "path to FeatureExtraction.exe"
       - you can find this file inside "openface\build\bin\Release\FeatureExtraction.exe" once you have downloaded using OpenFaceFINAL.ipynb to your system.
    
    OPENSMILE_PATH = "path to SMILExtract.exe"
-      - you can find this inside "opensmile-3.0.2\bin\SMILExtract.exe". opensmile-3.0.2 is the zip file I have uploaded inside Video scripts
+      - you can find this inside "opensmile-3.0.2\bin\SMILExtract.exe".
 
    OPENSMILE_CONFIG = "path to prosodyShs.conf"
       - you can find this inside "opensmile-3.0.2\config\prosody\prosodyShs.conf"
@@ -43,4 +47,5 @@ g) predict from video - this function receives the video from api and the above 
    Front end user interface
    no changes required
    const BACKEND_URL = "http://127.0.0.1:8000/predict"; # Line 226
+
 
