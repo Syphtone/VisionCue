@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Live Video Interview - RP2 Interview Coach</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.5/ace.js"></script>
+  <style>
+    html { font-family: 'Inter', sans-serif; }
+    body { background: linear-gradient(180deg, #e0f2fe 0%, #f5f5f5 100%); }
+    .title-gradient {
+      background: linear-gradient(45deg, #3b82f6, #10b981, #f97316);
+      background-size: 400%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: gradientShift 6s ease infinite;
+    }
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .gradient-hero { background: linear-gradient(135deg, #1e3a8a 0%, #2dd4bf 50%); position: relative; }
+    #particles-js { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.3; z-index: 0; }
+    .compact-tile {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+    .compact-tile:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+    }
+    .start-button { background: #10b981; }
+    .start-button:hover { background: #059669; }
+    .stop-button { background: #ef4444; }
+    .stop-button:hover { background: #dc2626; }
+    .readable-text { color: #1e3a8a; font-weight: 500; }
+    .heading-text { color: #1e3a8a; font-weight: 700; }
+    #editor {
+      width: 100%;
+      height: 250px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+    }
+    #code-output {
+      white-space: pre-wrap;
+      background: #f3f4f6;
+      padding: 0.75rem;
+      border-radius: 8px;
+      min-height: 60px;
+    }
+    .confidence-bar {
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 9999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .confidence-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
+      transition: width 1s ease-out;
+      border-radius: 9999px;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.5s ease-out; }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .spinner {
+      border: 3px solid #e5e7eb;
+      border-top: 3px solid #10b981;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+    }
+    .processing-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .processing-overlay.active {
+      display: flex;
+    }
+  </style>
+</head>
+<body class="font-['Inter']">
+
+<!-- Processing Overlay -->
+<div id="processingOverlay" class="processing-overlay">
+  <div class="bg-white rounded-lg p-8 text-center">
+    <div class="spinner mx-auto mb-4"></div>
+    <h3 class="text-xl font-bold heading-text mb-2">Analyzing Your Interview...</h3>
+    <p class="readable-text">This may take a minute. Please wait.</p>
+    <p class="text-sm text-gray-500 mt-2" id="processingStatus">Extracting features...</p>
+  </div>
+</div>
+
+<!-- Navbar -->
+<nav class="bg-white shadow-md fixed w-full z-20">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex justify-between h-16">
+      <div class="flex items-center">
+        <h1 class="flex items-center text-2xl font-extrabold">
+          <i class="fas fa-brain mr-2 text-emerald-500 animate-pulse"></i>
+          <span class="title-gradient">RP2 Interview Coach</span>
+        </h1>
+      </div>
+      <div class="flex items-center space-x-6">
+        <select id="language" class="border border-gray-300 bg-white rounded-md px-3 py-2 text-base text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-400">
+          <option value="en">English</option>
+          <option value="ml">Malayalam</option>
+          <option value="hi">Hindi</option>
+        </select>
+        <a href="/dashboard" class="text-gray-700 hover:text-teal-400 font-semibold text-base px-4 py-2">Dashboard</a>
+        <a href="/interview" class="text-gray-700 hover:text-teal-400 font-semibold text-base px-4 py-2">Practice</a>
+        <a href="/analytics" class="text-gray-700 hover:text-teal-400 font-semibold text-base px-4 py-2">Analytics</a>
+        <a href="/chatbot" class="text-gray-700 hover:text-teal-400 font-semibold text-base px-4 py-2">Chatbot</a>
+        <a href="/logout" class="bg-teal-400 text-white px-5 py-2 rounded-md hover:bg-teal-500 transition hover-scale text-base">Logout</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<div class="gradient-hero text-white py-16 pt-28 relative">
+  <div id="particles-js"></div>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+    <h2 class="text-4xl font-bold">Live Video Interview</h2>
+    <p class="mt-3 text-lg text-white/90">Answer questions in real-time while we record and analyze.</p>
+  </div>
+</div>
+
+<!-- Main Section -->
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid lg:grid-cols-3 gap-6 z-10 relative">
+
+  <!-- Video + Controls -->
+  <div class="lg:col-span-2 space-y-4">
+    <div class="compact-tile p-4">
+      <video id="videoPreview" class="w-full rounded-lg bg-black" autoplay muted playsinline></video>
+    </div>
+    <div class="flex gap-4 items-center">
+      <button id="toggleRecordBtn" class="start-button text-white px-6 py-2 rounded-md hover-scale flex items-center gap-2">
+        <i class="fas fa-play"></i>
+        <span>Start Interview</span>
+      </button>
+      <span id="timer" class="inline-block ml-auto text-lg font-semibold readable-text">00:00</span>
+    </div>
+    <div id="downloadArea" class="mt-2"></div>
+
+    <!-- Confidence Score Section (Hidden by default) -->
+    <div id="confidenceSection" class="compact-tile p-5 hidden fade-in">
+      <h3 class="text-xl font-bold heading-text mb-4 flex items-center">
+        <i class="fas fa-chart-line mr-2 text-emerald-500"></i>
+        Interview Analysis
+      </h3>
+      
+      <div class="space-y-4">
+        <!-- Overall Confidence Score -->
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-sm font-semibold readable-text">Overall Confidence</span>
+            <span id="overallScore" class="text-2xl font-bold text-emerald-600">0%</span>
+          </div>
+          <div class="confidence-bar">
+            <div id="overallBar" class="confidence-fill" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Feedback -->
+        <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <p class="text-sm readable-text">
+            <i class="fas fa-lightbulb mr-2 text-yellow-500"></i>
+            <span id="feedbackText">Great job! Keep practicing to improve your interview skills.</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Question + Code Editor -->
+  <div class="space-y-6">
+    <div class="compact-tile p-4">
+      <h3 class="text-xl font-bold heading-text mb-2"><i class="fas fa-question-circle mr-2"></i>Current Question</h3>
+      <p id="questionText" class="readable-text text-lg">Click "Start Interview" to receive the first question.</p>
+    </div>
+    <div class="compact-tile p-4">
+      <h3 class="text-xl font-bold heading-text mb-2"><i class="fas fa-code mr-2"></i>Test Your Code (JS)</h3>
+      <div id="editor">// Write your code here
+console.log('Testing Video Interview');</div>
+      <button id="runCodeBtn" class="mt-3 bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-md hover-scale">Run Code</button>
+      <pre id="code-output" class="mt-2 text-sm"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- Script -->
+<script>
+const questions = [
+  "Tell me about yourself.",
+  "Describe a challenging project you worked on.",
+  "How do you handle tight deadlines?",
+  "Explain an algorithm you recently used."
+];
+
+// CHANGE THIS TO YOUR BACKEND URL
+const BACKEND_URL = "http://127.0.0.1:8000/predict";
+
+let currentQ = 0,
+    mediaRecorder,
+    recordedChunks = [],
+    timerInterval,
+    seconds = 0,
+    isRecording = false;
+
+// Timer Function
+function updateTimer() {
+  seconds++;
+  const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+  const s = String(seconds % 60).padStart(2, '0');
+  document.getElementById('timer').textContent = `${m}:${s}`;
+}
+
+// Show/Hide Processing Overlay
+function showProcessing(show, status = 'Extracting features...') {
+  const overlay = document.getElementById('processingOverlay');
+  const statusText = document.getElementById('processingStatus');
+  if (show) {
+    overlay.classList.add('active');
+    statusText.textContent = status;
+  } else {
+    overlay.classList.remove('active');
+  }
+}
+
+// Send video to backend
+async function sendToBackend(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  showProcessing(true, 'Uploading video...');
+
+  try {
+    console.log('Sending video to backend...');
+    
+    const response = await fetch(BACKEND_URL, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Backend error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('Backend response:', result);
+
+    showProcessing(false);
+    displayResults(result);
+
+  } catch (error) {
+    console.error("Error:", error);
+    showProcessing(false);
+    
+    // Show error in UI
+    document.getElementById('confidenceSection').classList.remove('hidden');
+    document.getElementById('overallScore').textContent = 'Error';
+    document.getElementById('feedbackText').textContent = 
+      `Failed to analyze video: ${error.message}. Check console for details.`;
+  }
+}
+
+// Display results from backend
+function displayResults(result) {
+  const confidence = (result.confidence_score * 100).toFixed(1);
+  
+  // Show confidence section
+  document.getElementById('confidenceSection').classList.remove('hidden');
+  
+  // Animate scores
+  setTimeout(() => {
+    document.getElementById('overallScore').textContent = `${confidence}%`;
+    document.getElementById('overallBar').style.width = `${confidence}%`;
+
+    // Generate feedback
+    let feedback = '';
+    if (confidence >= 80) {
+      feedback = 'Excellent performance! You demonstrated strong confidence and communication skills.';
+    } else if (confidence >= 60) {
+      feedback = 'Good job! Focus on improving body language and maintaining eye contact.';
+    } else {
+      feedback = 'Keep practicing! Work on speaking clearly and structuring your answers better.';
+    }
+    document.getElementById('feedbackText').textContent = feedback;
+  }, 100);
+}
+
+// Toggle Recording (Start/Stop)
+document.getElementById('toggleRecordBtn').onclick = async () => {
+  const btn = document.getElementById('toggleRecordBtn');
+  const btnIcon = btn.querySelector('i');
+  const btnText = btn.querySelector('span');
+
+  if (!isRecording) {
+    // Start Recording
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      document.getElementById('videoPreview').srcObject = stream;
+
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp9'
+      });
+      recordedChunks = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          recordedChunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        console.log('Recording stopped, creating blob...');
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        console.log('Blob size:', blob.size, 'bytes');
+        
+        const url = URL.createObjectURL(blob);
+        
+        // Create file for backend
+        const file = new File([blob], "recorded_video.webm", { type: "video/webm" });
+        console.log('File created:', file.name, file.size, 'bytes');
+
+        // Create download link
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `video_interview_${Date.now()}.webm`;
+        a.textContent = '📥 Download Recording';
+        a.className = 'text-teal-500 underline block mt-2';
+        document.getElementById('downloadArea').innerHTML = '';
+        document.getElementById('downloadArea').appendChild(a);
+
+        // Send to backend
+        sendToBackend(file);
+      };
+
+      mediaRecorder.start();
+      console.log('Recording started');
+      
+      seconds = 0;
+      clearInterval(timerInterval);
+      timerInterval = setInterval(updateTimer, 1000);
+      nextQuestion();
+
+      // Update button to "Stop"
+      isRecording = true;
+      btn.className = 'stop-button text-white px-6 py-2 rounded-md hover-scale flex items-center gap-2';
+      btnIcon.className = 'fas fa-stop';
+      btnText.textContent = 'Stop & Save';
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      alert('Could not access camera. Please check permissions.');
+    }
+  } else {
+    // Stop Recording
+    console.log('Stopping recording...');
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach((t) => t.stop());
+    clearInterval(timerInterval);
+
+    // Update button back to "Start"
+    isRecording = false;
+    btn.className = 'start-button text-white px-6 py-2 rounded-md hover-scale flex items-center gap-2';
+    btnIcon.className = 'fas fa-play';
+    btnText.textContent = 'Start Interview';
+  }
+};
+
+// Next Question
+function nextQuestion() {
+  if (currentQ < questions.length) {
+    document.getElementById('questionText').textContent = questions[currentQ++];
+  } else {
+    document.getElementById('questionText').textContent = "Interview Completed!";
+  }
+}
+
+// Ace Editor
+const editor = ace.edit("editor");
+editor.setTheme("ace/theme/github");
+editor.session.setMode("ace/mode/javascript");
+
+document.getElementById('runCodeBtn').onclick = () => {
+  const code = editor.getValue();
+  try {
+    const result = Function(code)();
+    document.getElementById('code-output').textContent = result ?? 'Executed without return.';
+  } catch (err) {
+    document.getElementById('code-output').textContent = err.toString();
+  }
+};
+
+// Initialize particles
+particlesJS('particles-js', {
+  particles: {
+    number: { value: 80 },
+    color: { value: '#ffffff' },
+    shape: { type: 'circle' },
+    opacity: { value: 0.5 },
+    size: { value: 3 },
+    line_linked: { enable: true, color: '#ffffff', opacity: 0.4 },
+    move: { enable: true, speed: 2 }
+  }
+});
+</script>
+</body>
+</html>
