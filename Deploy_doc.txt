@@ -1,0 +1,46 @@
+1. Pipeline_2Fix(1).py
+
+   This python file is the backend pipeline of the product
+   MODEL_PATH = "your path to saved trained model (facelstm_WFH_v1.keras)"
+   SCALER_PATH = "path to saved Standard scaler to ensure consistent data transformation during model training and deployment.(scaler.pkl)
+
+   OPENFACE_PATH = "path to FeatureExtraction.exe"
+      - you can find this file inside "openface\build\bin\Release\FeatureExtraction.exe" once you have downloaded using OpenFaceFINAL.ipynb to your system.
+   
+   OPENSMILE_PATH = "path to SMILExtract.exe"
+      - you can find this inside "opensmile-3.0.2\bin\SMILExtract.exe". opensmile-3.0.2 is the zip file I have uploaded inside Video scripts
+
+   OPENSMILE_CONFIG = "path to prosodyShs.conf"
+      - you can find this inside "opensmile-3.0.2\config\prosody\prosodyShs.conf"
+
+no need to change the rest of the functiom, 
+a) convert webm to mp4 - the video recorded from the frontend will be in .webm format, this function converts it to .mp4
+b) extract openface - extracts the facial features from .mp4 video using OPENFACE_PATH which is FeatureExtraction.exe
+c) convert to .wav ffmpeg - opensmile can only extract features from audio files, so the video .mp4 needs to get converted into .wav
+d) extract opensmile - extracts the prosody features from .wav audio file using OPENSMILE_PATH and OPENSMILE_CONFIG
+e) align features - it merges the extracted opensmile and opensmile files into one merged file
+f) preprocess features - the merged file then goes through this function data preprocessing takes place just like we did before training the model
+g) predict from video - this function receives the video from api and the above function are executed and predicted using MODEL_PATH to get the result which is confidence score
+
+2. Main_2.py
+
+   This is the FastAPI python file
+   nothing to change here
+   
+   RUN COMMAND
+   uvicorn Main_2:app --reload
+
+   Main_2 → your Python filename (without .py)
+   app → the FastAPI instance inside that file
+   --reload → auto-restarts when you make code changes (useful during development)
+
+   @app.post("/predict") # Line 22
+   async def predict(file: UploadFile = File(...)):
+       logger.info(f"Received file: {file.filename}, content_type: {file.content_type}")
+
+3. fixed-video-interview.html
+ 
+   Front end user interface
+   no changes required
+   const BACKEND_URL = "http://127.0.0.1:8000/predict"; # Line 226
+
