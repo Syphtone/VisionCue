@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os
 import logging
-from Pipeline_2Fix import predict_from_video
+from Pipeline_2Fix(1) import predict_from_video
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -63,3 +63,4 @@ async def predict(file: UploadFile = File(...)):
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
