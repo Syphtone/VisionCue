@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os
 import logging
-from pipeline import predict_from_video
+from Pipeline_2Fix import predict_from_video
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -41,10 +41,11 @@ async def predict(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="File upload failed or file is empty")
         
         logger.info("Starting video analysis...")
-        score = predict_from_video(temp_path)
-        logger.info(f"Analysis complete. Score: {score}")
+
+        result = predict_from_video(temp_path)
+        logger.info(f"Analysis complete. Result: {result}")
         
-        return JSONResponse(content={"confidence_score": float(score)})
+        return JSONResponse(content=result)
         
     except Exception as e:
         logger.error(f"Error during prediction: {str(e)}", exc_info=True)
