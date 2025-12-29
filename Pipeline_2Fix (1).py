@@ -8,15 +8,20 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.utils import pad_sequences
 import joblib
 from pathlib import Path
+from groq import Groq
+from config import API_KEY
 
 # Load model and scaler once
-MODEL_PATH = r"D:\RP2\AI_Interview_Coach\facelstm_WFV_v1.keras"
-SCALER_PATH = r"D:\RP2\AI_Interview_Coach\scaler.pkl"
+MODEL_PATH = r"D:\RP2\RP2_Projects\AI_Interview_Coach\Main\facelstm_WFV_v1.keras"
+SCALER_PATH = r"D:\RP2\RP2_Projects\AI_Interview_Coach\Main\scaler.pkl"
+
+# ⚠️ YOU MUST UPDATE THESE PATHS TO YOUR ACTUAL INSTALLATION
+FFMPEG_PATH = r"D:\RP2\RP2_Projects\AI_Interview_Coach\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe"
 
 # ⚠️ YOU MUST UPDATE THESE PATHS TO YOUR ACTUAL INSTALLATION
 # OPENFACE_PATH = r"D:\RP2\AI_Interview_Coach\OpenFace\build\bin\Release\FeatureExtraction.exe"  # UPDATE THIS!
-OPENSMILE_PATH = r"D:\libs\opensmile\bin\SMILExtract.exe"
-OPENSMILE_CONFIG = r"D:\libs\opensmile\config\prosody\ProsodyShs.conf"
+OPENSMILE_PATH = r"D:\RP2\RP2_Projects\AI_Interview_Coach\opensmile-3.0.2\bin\SMILExtract.exe"
+OPENSMILE_CONFIG = r"D:\RP2\RP2_Projects\AI_Interview_Coach\opensmile-3.0.2\config\prosody\prosodyShs.conf"
 
 def convert_webm_to_mp4(input_path, output_path="temp_converted.mp4"):
     """Convert WebM to MP4 using ffmpeg (must be installed)"""
@@ -54,10 +59,10 @@ def extract_openface(video_path, output_dir="temp_openface_output"):
             "docker", "run", "--rm",
             "-v", f"{video_path.parent}:/data",
             "-v", f"{output_dir}:/output",
-            "algebr/openface:latest",
-            "FeatureExtraction",
+            "openface", # Docker image name
             "-f", f"/data/{video_path.name}",
-            "-out_dir", "/output"
+            "-out_dir", "/output",
+            "-no_face_detector_haar" # Disable Haar cascade face detector, use MTCNN instead
         ]
 
         result = subprocess.run(
@@ -105,7 +110,7 @@ def convert_to_wav_ffmpeg(video_path, wav_path="temp_audio.wav"):
 
     # ffmpeg command
     cmd = [
-        "ffmpeg",
+        FFMPEG_PATH,
         "-y",  # overwrite
         "-i", video_path,
         "-vn",  # no video
@@ -266,6 +271,149 @@ def preprocess_features(df):
     logger.info(f"Preprocessed shape: {X_padded.shape}")
     return X_padded
 
+def signals_to_behavioral_features(df, confidence):
+    """Converts merged OpenFace and OpenSMILE signals into a compact behavioral JSON for LLM feedback."""
+    logger.info("Converting signals to behavioral features...")
+    
+    n = len(df)
+    thirds = {
+        'start': df.iloc[:n//3],
+        'middle': df.iloc[n//3:2*n//3],
+        'end': df.iloc[2*n//3:]
+    }
+
+    #------------------
+    # Facial Behaviors
+    #------------------
+    def eye_contact(chunk):
+        gaze = chunk[["gaze_angle_x", "gaze_angle_y"]].abs().mean().mean()
+        return "strong" if gaze < 0.15 else "moderate" if gaze < 0.3 else "weak"
+    
+    def head_stability(chunk):
+        motion = chunk[["pose_Rx", "pose_Ry", "pose_Rz"]].std().mean()
+        return "stable" if motion < 0.4 else "moderate" if motion < 0.8 else "unstable"
+    
+    def stress(chunk):
+        stress_val = chunk[["AU04_r", "AU15_r"]].mean().mean()
+        return "low" if stress_val < 0.8 else "moderate" if stress_val < 1.5 else "high"
+    
+    def friendliness(chunk):
+        smile = chunk[["AU12_r", "AU06_r"]].mean().mean()
+        return "high" if smile > 1.5 else "moderate" if smile > 0.7 else "low"
+        
+    #------------------
+    # Audio Behaviors
+    #------------------
+
+    #-----loudness------
+    loud_mean = df["pcm_loudness_sma"].mean()
+    loud_std = df["pcm_loudness_sma"].std()
+
+    if loud_mean < 0.3:
+        loudness = "soft"
+    elif loud_mean < 0.7:
+        loudness = "moderate"
+    else:
+        loudness = "loud"
+
+    loudness_stability = "stable" if loud_std < 0.2 else "variable"
+
+    #------Speech Fluency------
+    voicing_ratio = df["voicingFinalUnclipped_sma"].mean()
+    if voicing_ratio > 0.85:
+        fluency = "consistent"
+    elif voicing_ratio > 0.6:
+        fluency = "moderate"
+    else:
+        fluency = "hesitant"
+
+    #---------------------------
+    # Normalize confidence score
+    #---------------------------
+    if confidence <= 1.0:
+        confidence_score = int(confidence*100)
+    else:
+        confidence_score = int(confidence)
+    logger.info(f"Normalized confidence score: {confidence_score}")
+
+    if confidence_score >= 75:
+        confidence_level = "high"
+    elif confidence_score >= 50:
+        confidence_level = "moderate"
+    else:
+        confidence_level = "low"
+
+    #--------------------
+    # Final JSON Output
+    #--------------------
+    behavioral_features = {
+        "visual": {
+            "eye_contact": {
+                "overall": eye_contact(df),
+                "timeline": {k: eye_contact(v) for k, v in thirds.items()}
+            },
+            "head_stability": {
+                "overall": head_stability(df),
+            },
+            "facial_expressions": {
+                "friendliness": friendliness(df),
+                "stress": {
+                    "overall": stress(df),
+                    "timeline": {k: stress(v) for k, v in thirds.items()}
+                }
+            }
+        },
+        "audio": {
+            "loudness": {
+                "level": loudness,
+                "stability": loudness_stability
+            },
+            "speech_fluency": fluency
+        },
+        "confidence": {
+            "score": confidence_score,
+            "level": confidence_level
+        }
+    }
+    logger.info("Behavioral features extraction complete")
+    return behavioral_features
+
+#-----------------------------
+# Feedback Generation Pipeline
+#-----------------------------  
+client = Groq(api_key=API_KEY)
+
+def generate_feedback(behavioral_features):
+    """Generate feedback using Groq LLM based on behavioral features"""
+    logger.info("Generating feedback using Groq LLM...")
+    
+    prompt = f"""
+    You are an expert interview coach. Based on the following behavioral features extracted from a candidate's video interview, provide constructive feedback. \n
+    Also comment on the overall confidence level.
+
+    Behavioral Features:
+    {behavioral_features} \n
+
+    Provide specific suggestions for improvement where applicable.
+    """
+
+    response = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[
+            {"role": "system", "content": "You are a professional interview coach."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=500,
+        temperature=0.6
+    )
+
+    feedback = response.choices[0].message.content
+    logger.info("Feedback generation complete")
+    return feedback
+
+#--------------
+# Main Pipeline
+#--------------
 def predict_from_video(video_path):
     """Main pipeline: extract features and predict confidence"""
     logger.info(f"Starting prediction pipeline for {video_path}")
@@ -304,8 +452,14 @@ def predict_from_video(video_path):
         confidence = float(pred[0][0])
         
         logger.info(f"Prediction complete: {confidence}")
-        return confidence
-        
+    
+        # 5. Convert signals to behavioral features
+        behavioral_features = signals_to_behavioral_features(merged, confidence)
+
+        # 6. Generate AI feedback
+        feedback = generate_feedback(behavioral_features)
+        return {"confidence": confidence, "feedback": feedback}
+
     finally:
         # Cleanup temp files
         for temp_file in [converted_path, openface_csv, opensmile_csv]:
